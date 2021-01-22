@@ -6,11 +6,9 @@ services:
     expose:
       - 6379
     ports:
-      - "6379:6379"
+      - 6379:6379
     networks:
-      - data
-    volumes:
-      - redis-data:/data
+      - ratelimit-network
 
   memcached:
     image: memcached:alpine
@@ -62,11 +60,10 @@ services:
       - REDIS_URL=redis:6379
       - RUNTIME_ROOT=/data
       - RUNTIME_SUBDIRECTORY=ratelimit
+      - MEMCACHE_HOST_PORT=memcached:11211
 
 networks:
-  data:
+  ratelimit-network:
 
 volumes:
-  redis-data:
-  ratelimit-data:
-      - MEMCACHE_HOST_PORT=memcached:11211
+  binary:
