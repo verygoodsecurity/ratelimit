@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	logger "github.com/Sirupsen/logrus"
-	"github.com/lyft/gostats"
-	pb "github.com/lyft/ratelimit/proto/ratelimit"
+	pb_struct "github.com/envoyproxy/go-control-plane/envoy/extensions/common/ratelimit/v3"
+	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
+	stats "github.com/lyft/gostats"
+	logger "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 )
@@ -38,7 +39,8 @@ type rateLimitDomain struct {
 }
 
 type rateLimitConfigImpl struct {
-	domains map[string]*rateLimitDomain
+	domains    map[string]*rateLimitDomain
+	statsScope stats.Scope
 }
 
 var validKeys = map[string]bool{
@@ -60,6 +62,7 @@ func newRateLimitStats(statsScope stats.Scope, key string) RateLimitStats {
 	ret.TotalHits = statsScope.NewCounter(key + ".total_hits")
 	ret.OverLimit = statsScope.NewCounter(key + ".over_limit")
 	ret.NearLimit = statsScope.NewCounter(key + ".near_limit")
+	ret.OverLimitWithLocalCache = statsScope.NewCounter(key + ".over_limit_with_local_cache")
 	return ret
 }
 
@@ -70,9 +73,9 @@ func newRateLimitStats(statsScope stats.Scope, key string) RateLimitStats {
 // @param scope supplies the owning scope.
 // @return the new config entry.
 func NewRateLimit(
-	requestsPerUnit uint32, unit pb.RateLimit_Unit, key string, scope stats.Scope) *RateLimit {
+	requestsPerUnit uint32, unit pb.RateLimitResponse_RateLimit_Unit, key string, scope stats.Scope) *RateLimit {
 
-	return &RateLimit{key, newRateLimitStats(scope, key), &pb.RateLimit{requestsPerUnit, unit}}
+	return &RateLimit{FullKey: key, Stats: newRateLimitStats(scope, key), Limit: &pb.RateLimitResponse_RateLimit{RequestsPerUnit: requestsPerUnit, Unit: unit}}
 }
 
 // Dump an individual descriptor for debugging purposes.
@@ -126,15 +129,15 @@ func (this *rateLimitDescriptor) loadDescriptors(
 		var rateLimitDebugString string = ""
 		if descriptorConfig.RateLimit != nil {
 			value, present :=
-				pb.RateLimit_Unit_value[strings.ToUpper(descriptorConfig.RateLimit.Unit)]
-			if !present || value == int32(pb.RateLimit_UNKNOWN) {
+				pb.RateLimitResponse_RateLimit_Unit_value[strings.ToUpper(descriptorConfig.RateLimit.Unit)]
+			if !present || value == int32(pb.RateLimitResponse_RateLimit_UNKNOWN) {
 				panic(newRateLimitConfigError(
 					config,
 					fmt.Sprintf("invalid rate limit unit '%s'", descriptorConfig.RateLimit.Unit)))
 			}
 
 			rateLimit = NewRateLimit(
-				descriptorConfig.RateLimit.RequestsPerUnit, pb.RateLimit_Unit(value), newParentKey,
+				descriptorConfig.RateLimit.RequestsPerUnit, pb.RateLimitResponse_RateLimit_Unit(value), newParentKey,
 				statsScope)
 			rateLimitDebugString = fmt.Sprintf(
 				" ratelimit={requests_per_unit=%d, unit=%s}", rateLimit.Limit.RequestsPerUnit,
@@ -195,8 +198,7 @@ func validateYamlKeys(config RateLimitConfigToLoad, config_map map[interface{}]i
 
 // Load a single YAML config file into the global config.
 // @param config specifies the file contents to load.
-// @param statsScope supplies the owning scope.
-func (this *rateLimitConfigImpl) loadConfig(config RateLimitConfigToLoad, statsScope stats.Scope) {
+func (this *rateLimitConfigImpl) loadConfig(config RateLimitConfigToLoad) {
 	// validate keys in config with generic map
 	any := map[interface{}]interface{}{}
 	err := yaml.Unmarshal([]byte(config.FileBytes), &any)
@@ -226,8 +228,22 @@ func (this *rateLimitConfigImpl) loadConfig(config RateLimitConfigToLoad, statsS
 
 	logger.Debugf("loading domain: %s", root.Domain)
 	newDomain := &rateLimitDomain{rateLimitDescriptor{map[string]*rateLimitDescriptor{}, nil}}
-	newDomain.loadDescriptors(config, root.Domain+".", root.Descriptors, statsScope)
+	newDomain.loadDescriptors(config, root.Domain+".", root.Descriptors, this.statsScope)
 	this.domains[root.Domain] = newDomain
+}
+
+func (this *rateLimitConfigImpl) descriptorToKey(descriptor *pb_struct.RateLimitDescriptor) string {
+	rateLimitKey := ""
+	for _, entry := range descriptor.Entries {
+		if rateLimitKey != "" {
+			rateLimitKey += "."
+		}
+		rateLimitKey += entry.Key
+		if entry.Value != "" {
+			rateLimitKey += "_" + entry.Value
+		}
+	}
+	return rateLimitKey
 }
 
 func (this *rateLimitConfigImpl) Dump() string {
@@ -240,13 +256,24 @@ func (this *rateLimitConfigImpl) Dump() string {
 }
 
 func (this *rateLimitConfigImpl) GetLimit(
-	ctx context.Context, domain string, descriptor *pb.RateLimitDescriptor) *RateLimit {
+	ctx context.Context, domain string, descriptor *pb_struct.RateLimitDescriptor) *RateLimit {
 
 	logger.Debugf("starting get limit lookup")
 	var rateLimit *RateLimit = nil
 	value := this.domains[domain]
 	if value == nil {
 		logger.Debugf("unknown domain '%s'", domain)
+		return rateLimit
+	}
+
+	if descriptor.GetLimit() != nil {
+		rateLimitKey := domain + "." + this.descriptorToKey(descriptor)
+		rateLimitOverrideUnit := pb.RateLimitResponse_RateLimit_Unit(descriptor.GetLimit().GetUnit())
+		rateLimit = NewRateLimit(
+			descriptor.GetLimit().GetRequestsPerUnit(),
+			rateLimitOverrideUnit,
+			rateLimitKey,
+			this.statsScope)
 		return rateLimit
 	}
 
@@ -290,9 +317,9 @@ func (this *rateLimitConfigImpl) GetLimit(
 func NewRateLimitConfigImpl(
 	configs []RateLimitConfigToLoad, statsScope stats.Scope) RateLimitConfig {
 
-	ret := &rateLimitConfigImpl{map[string]*rateLimitDomain{}}
+	ret := &rateLimitConfigImpl{map[string]*rateLimitDomain{}, statsScope}
 	for _, config := range configs {
-		ret.loadConfig(config, statsScope)
+		ret.loadConfig(config)
 	}
 
 	return ret

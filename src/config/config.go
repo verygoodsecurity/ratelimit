@@ -1,15 +1,11 @@
 package config
 
 import (
-	"github.com/lyft/gostats"
-	pb "github.com/lyft/ratelimit/proto/ratelimit"
+	pb_struct "github.com/envoyproxy/go-control-plane/envoy/extensions/common/ratelimit/v3"
+	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
+	stats "github.com/lyft/gostats"
 	"golang.org/x/net/context"
 )
-
-// The NearLimitRation constant defines the ratio of total_hits over
-// the Limit's RequestPerUnit that need to happen before triggering a near_limit
-// stat increase
-const NearLimitRatio = 0.8
 
 // Errors that may be raised during config parsing.
 type RateLimitConfigError string
@@ -20,16 +16,17 @@ func (e RateLimitConfigError) Error() string {
 
 // Stats for an individual rate limit config entry.
 type RateLimitStats struct {
-	TotalHits stats.Counter
-	OverLimit stats.Counter
-	NearLimit stats.Counter
+	TotalHits               stats.Counter
+	OverLimit               stats.Counter
+	NearLimit               stats.Counter
+	OverLimitWithLocalCache stats.Counter
 }
 
 // Wrapper for an individual rate limit config entry which includes the defined limit and stats.
 type RateLimit struct {
 	FullKey string
 	Stats   RateLimitStats
-	Limit   *pb.RateLimit
+	Limit   *pb.RateLimitResponse_RateLimit
 }
 
 // Interface for interacting with a loaded rate limit config.
@@ -42,7 +39,7 @@ type RateLimitConfig interface {
 	// @param domain supplies the domain to lookup the descriptor in.
 	// @param descriptor supplies the descriptor to look up.
 	// @return a rate limit to apply or nil if no rate limit is configured for the descriptor.
-	GetLimit(ctx context.Context, domain string, descriptor *pb.RateLimitDescriptor) *RateLimit
+	GetLimit(ctx context.Context, domain string, descriptor *pb_struct.RateLimitDescriptor) *RateLimit
 }
 
 // Information for a config file to load into the aggregate config.
