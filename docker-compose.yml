@@ -62,3 +62,8 @@ services:
       - RUNTIME_SUBDIRECTORY=ratelimit
       - MEMCACHE_HOST_PORT=memcached:11211
 
+networks:
+  ratelimit-network:
+
+volumes:
+  binary:
