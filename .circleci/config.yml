@@ -3,6 +3,11 @@ version: 2
 job-defaults: &job-defaults
   working_directory: &working_directory
     /go/src/github.com/lyft/ratelimit/
+  environment:
+    - AWS_DEFAULT_REGION: us-west-2
+    - AWS_REGION: us-west-2
+    - AWS_ACCOUNT_ID: "883127560329"
+    - AWS_PROFILE: dev/vault
 
 jobs:
   build:
@@ -13,7 +18,7 @@ jobs:
       - REDIS_SOCKET_TYPE=tcp
       - REDIS_URL=localhost:6379
     docker:
-      - image: circleci/golang:1.9
+      - image: circleci/golang:1.14
       - image: redis:alpine
     steps:
       - checkout
@@ -21,12 +26,28 @@ jobs:
       - run:
           name: Compile
           command: |
-            make bootstrap
             make compile
+
+  release-image-quay:
+    machine:
+      docker_layer_caching: true
+    <<: *job-defaults
+    steps:
       - run:
-          name: Build Docker Image and Run Tests
+          name: push to Quay
           command: |
-            make docker
+            unset AWS_ACCESS_KEY_ID; unset AWS_SECRET_ACCESS_KEY;
+            ./ops/docker-login-quay.sh
+
+            export VERSION=${CIRCLE_TAG}
+
+            docker-compose ratelimit-build
+            docker-compose push
+
+            if [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              VERSION=latest docker-compose push
+            fi
+
 
 workflows:
   version: 2
