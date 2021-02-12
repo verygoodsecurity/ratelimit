@@ -1,4 +1,4 @@
-version: 2
+version: 2.1
 
 job-defaults: &job-defaults
   working_directory: &working_directory
@@ -73,4 +73,4 @@ workflows:
             tags:
               only: /^\d+\.\d+\.\d+(?:-\w+){0,1}$/
             branches:
-              ignore: /.*/
+              only: /.*/
