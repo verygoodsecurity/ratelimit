@@ -66,8 +66,10 @@ workflows:
               only: /.*/      
       - release-image-quay:
           context: circleci
+          requires:
+            - build
           filters:
             tags:
               only: /^\d+\.\d+\.\d+(?:-\w+){0,1}$/
             branches:
-              only: /.*/
+              ignore: /.*/
