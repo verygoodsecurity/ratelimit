@@ -37,7 +37,6 @@ jobs:
       docker_layer_caching: true
     <<: *job-defaults
     steps:
-      - <<: *attach-workspace
       - run:
           name: push to Quay
           command: |
