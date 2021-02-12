@@ -53,7 +53,6 @@ jobs:
               VERSION=latest docker-compose push
             fi
 
-
 workflows:
   version: 2
   test_and_build:
