@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"time"
 
 	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
 	"github.com/envoyproxy/ratelimit/src/assert"
@@ -128,7 +129,10 @@ func (this *service) shouldRateLimitWorker(
 
 	limitsToCheck, isUnlimited := this.constructLimitsToCheck(request, ctx)
 
+	start := time.Now()
 	responseDescriptorStatuses := this.cache.DoLimit(ctx, request, limitsToCheck)
+	logger.Infof("DoLimit execution time: %v milliseconds", float64(time.Since(start).Milliseconds()))
+
 	assert.Assert(len(limitsToCheck) == len(responseDescriptorStatuses))
 
 	response := &pb.RateLimitResponse{}
