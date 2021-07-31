@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	pb_struct "github.com/envoyproxy/go-control-plane/envoy/extensions/common/ratelimit/v3"
 	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
@@ -249,6 +250,7 @@ func (this *rateLimitConfigImpl) GetLimit(
 		return rateLimit
 	}
 
+	start1 := time.Now()
 	if descriptor.GetLimit() != nil {
 		rateLimitKey := descriptorKey(domain, descriptor)
 		rateLimitOverrideUnit := pb.RateLimitResponse_RateLimit_Unit(descriptor.GetLimit().GetUnit())
@@ -259,7 +261,9 @@ func (this *rateLimitConfigImpl) GetLimit(
 			false)
 		return rateLimit
 	}
+	logger.Infof("GetLimit.inside1 execution time: %v milliseconds", float64(time.Since(start1).Milliseconds()))
 
+	start2 := time.Now()
 	descriptorsMap := value.descriptors
 	for i, entry := range descriptor.Entries {
 		// First see if key_value is in the map. If that isn't in the map we look for just key
@@ -289,6 +293,7 @@ func (this *rateLimitConfigImpl) GetLimit(
 			break
 		}
 	}
+	logger.Infof("GetLimit.inside2 execution time: %v milliseconds", float64(time.Since(start2).Milliseconds()))
 
 	return rateLimit
 }
