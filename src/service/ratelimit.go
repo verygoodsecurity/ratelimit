@@ -184,7 +184,10 @@ func (this *service) ShouldRateLimit(
 		}
 	}()
 
+	start := time.Now()
 	response := this.shouldRateLimitWorker(ctx, request)
+	logger.Infof("shouldRateLimitWorker execution time: %v milliseconds", float64(time.Since(start).Milliseconds()))
+
 	logger.Debugf("returning normal response")
 	return response, nil
 }

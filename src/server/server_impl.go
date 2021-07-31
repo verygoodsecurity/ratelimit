@@ -5,6 +5,8 @@ import (
 	"expvar"
 	"fmt"
 	"github.com/envoyproxy/ratelimit/src/stats"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"io"
 	"net/http"
 	"net/http/pprof"
@@ -29,8 +31,6 @@ import (
 	gostats "github.com/lyft/gostats"
 	logger "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type serverDebugListener struct {
@@ -179,9 +179,9 @@ func newServer(s settings.Settings, name string, statsManager stats.Manager, loc
 	ret.grpcServer = grpc.NewServer(s.GrpcUnaryInterceptor)
 
 	// setup listen addresses
-	ret.httpAddress = net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
+	//ret.httpAddress = net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	ret.grpcAddress = net.JoinHostPort(s.GrpcHost, strconv.Itoa(s.GrpcPort))
-	ret.debugAddress = net.JoinHostPort(s.DebugHost, strconv.Itoa(s.DebugPort))
+	//ret.debugAddress = net.JoinHostPort(s.DebugHost, strconv.Itoa(s.DebugPort))
 
 	// setup stats
 	ret.store = statsManager.GetStatsStore()
