@@ -79,7 +79,9 @@ func checkServiceErr(something bool, msg string) {
 }
 
 func (this *service) constructLimitsToCheck(request *pb.RateLimitRequest, ctx context.Context) ([]*config.RateLimit, []bool) {
+	start1 := time.Now()
 	snappedConfig := this.GetCurrentConfig()
+	logger.Infof("constructLimitsToCheck.GetCurrentConfig execution time: %v milliseconds, %v", float64(time.Since(start1).Milliseconds()), len(request.Descriptors))
 	checkServiceErr(snappedConfig != nil, "no rate limit configuration loaded")
 
 	limitsToCheck := make([]*config.RateLimit, len(request.Descriptors))
@@ -96,7 +98,10 @@ func (this *service) constructLimitsToCheck(request *pb.RateLimitRequest, ctx co
 			}
 			logger.Debugf("got descriptor: %s", strings.Join(descriptorEntryStrings, ","))
 		}
+
+		start2 := time.Now()
 		limitsToCheck[i] = snappedConfig.GetLimit(ctx, request.Domain, descriptor)
+		logger.Infof("snappedConfig.GetLimit execution time: %v milliseconds, %v", float64(time.Since(start2).Milliseconds()), i)
 		if logger.IsLevelEnabled(logger.DebugLevel) {
 			if limitsToCheck[i] == nil {
 				logger.Debugf("descriptor does not match any limit, no limits applied")
@@ -124,14 +129,12 @@ func (this *service) constructLimitsToCheck(request *pb.RateLimitRequest, ctx co
 func (this *service) shouldRateLimitWorker(
 	ctx context.Context, request *pb.RateLimitRequest) *pb.RateLimitResponse {
 
-	start4 := time.Now()
-
 	start2 := time.Now()
 	checkServiceErr(request.Domain != "", "rate limit domain must not be empty")
 	checkServiceErr(len(request.Descriptors) != 0, "rate limit descriptor list must not be empty")
 
 	limitsToCheck, isUnlimited := this.constructLimitsToCheck(request, ctx)
-	logger.Infof("constructLimitsToCheck execution time: %v milliseconds", float64(time.Since(start2).Milliseconds()))
+	logger.Infof("constructLimitsToCheck execution time: %v milliseconds / %v", float64(time.Since(start2).Milliseconds()), len(request.Descriptors))
 
 	start := time.Now()
 	responseDescriptorStatuses := this.cache.DoLimit(ctx, request, limitsToCheck)
@@ -139,7 +142,6 @@ func (this *service) shouldRateLimitWorker(
 
 	assert.Assert(len(limitsToCheck) == len(responseDescriptorStatuses))
 
-	start3 := time.Now()
 	response := &pb.RateLimitResponse{}
 	response.Statuses = make([]*pb.RateLimitResponse_DescriptorStatus, len(request.Descriptors))
 	finalCode := pb.RateLimitResponse_OK
@@ -158,8 +160,6 @@ func (this *service) shouldRateLimitWorker(
 	}
 
 	response.OverallCode = finalCode
-	logger.Infof("constructLimitsToCheck.statuses execution time: %v milliseconds", float64(time.Since(start3).Milliseconds()))
-	logger.Infof("shouldRateLimitWorker.inside execution time: %v milliseconds", float64(time.Since(start4).Milliseconds()))
 	return response
 }
 
