@@ -43,6 +43,7 @@ func (r *ServerReporter) UnaryServerInterceptor() func(ctx context.Context, req 
 		resp, err := handler(ctx, req)
 		logger.Infof("%s execution time: %v milliseconds", info.FullMethod, float64(time.Since(start2).Milliseconds()))
 		s.responseTime.AddValue(float64(time.Since(start).Milliseconds()))
+		logger.Infof("Total interceptor %s execution time: %v milliseconds", info.FullMethod, float64(time.Since(start).Milliseconds()))
 		return resp, err
 	}
 }
