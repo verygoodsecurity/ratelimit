@@ -21,7 +21,6 @@ import (
 
 	"github.com/coocood/freecache"
 	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
-	"github.com/envoyproxy/ratelimit/src/limiter"
 	"github.com/envoyproxy/ratelimit/src/settings"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/mux"
@@ -187,10 +186,10 @@ func newServer(s settings.Settings, name string, statsManager stats.Manager, loc
 	// setup stats
 	ret.store = statsManager.GetStatsStore()
 	ret.scope = ret.store.ScopeWithTags(name, s.ExtraTags)
-	ret.store.AddStatGenerator(gostats.NewRuntimeStats(ret.scope.Scope("go")))
-	if localCache != nil {
-		ret.store.AddStatGenerator(limiter.NewLocalCacheStats(localCache, ret.scope.Scope("localcache")))
-	}
+	//ret.store.AddStatGenerator(gostats.NewRuntimeStats(ret.scope.Scope("go")))
+	//if localCache != nil {
+	//	ret.store.AddStatGenerator(limiter.NewLocalCacheStats(localCache, ret.scope.Scope("localcache")))
+	//}
 
 	// setup runtime
 	loaderOpts := make([]loader.Option, 0, 1)
