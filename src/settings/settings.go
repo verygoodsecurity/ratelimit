@@ -19,7 +19,7 @@ type Settings struct {
 	DebugPort int    `envconfig:"DEBUG_PORT" default:"6070"`
 
 	// Logging settings
-	LogLevel  string `envconfig:"LOG_LEVEL" default:"WARN"`
+	LogLevel  string `envconfig:"LOG_LEVEL" default:"INFO"`
 	LogFormat string `envconfig:"LOG_FORMAT" default:"text"`
 
 	// Stats-related settings
