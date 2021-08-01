@@ -250,20 +250,21 @@ func (this *rateLimitConfigImpl) GetLimit(
 		return rateLimit
 	}
 
-	start1 := time.Now()
 	if descriptor.GetLimit() != nil {
+		start1 := time.Now()
 		rateLimitKey := descriptorKey(domain, descriptor)
+		logger.Infof("GetLimit.descriptorKey execution time: %v milliseconds", float64(time.Since(start1).Milliseconds()))
 		rateLimitOverrideUnit := pb.RateLimitResponse_RateLimit_Unit(descriptor.GetLimit().GetUnit())
+		start2 := time.Now()
 		rateLimit = NewRateLimit(
 			descriptor.GetLimit().GetRequestsPerUnit(),
 			rateLimitOverrideUnit,
 			this.statsManager.NewStats(rateLimitKey),
 			false)
+		logger.Infof("GetLimit.NewRateLimit execution time: %v milliseconds", float64(time.Since(start2).Milliseconds()))
 		return rateLimit
 	}
-	logger.Infof("GetLimit.inside1 execution time: %v milliseconds", float64(time.Since(start1).Milliseconds()))
 
-	start2 := time.Now()
 	descriptorsMap := value.descriptors
 	for i, entry := range descriptor.Entries {
 		// First see if key_value is in the map. If that isn't in the map we look for just key
@@ -293,7 +294,6 @@ func (this *rateLimitConfigImpl) GetLimit(
 			break
 		}
 	}
-	logger.Infof("GetLimit.inside2 execution time: %v milliseconds", float64(time.Since(start2).Milliseconds()))
 
 	return rateLimit
 }
