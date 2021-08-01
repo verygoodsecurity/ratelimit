@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	pb_struct "github.com/envoyproxy/go-control-plane/envoy/extensions/common/ratelimit/v3"
 	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
@@ -251,17 +250,13 @@ func (this *rateLimitConfigImpl) GetLimit(
 	}
 
 	if descriptor.GetLimit() != nil {
-		start1 := time.Now()
 		rateLimitKey := descriptorKey(domain, descriptor)
-		logger.Infof("GetLimit.descriptorKey execution time: %v milliseconds", float64(time.Since(start1).Milliseconds()))
 		rateLimitOverrideUnit := pb.RateLimitResponse_RateLimit_Unit(descriptor.GetLimit().GetUnit())
-		start2 := time.Now()
 		rateLimit = NewRateLimit(
 			descriptor.GetLimit().GetRequestsPerUnit(),
 			rateLimitOverrideUnit,
-			this.statsManager.NewStats(rateLimitKey),
+			this.statsManager.NewStats(domain + ".override"),
 			false)
-		logger.Infof("GetLimit.NewRateLimit execution time: %v milliseconds", float64(time.Since(start2).Milliseconds()))
 		return rateLimit
 	}
 
