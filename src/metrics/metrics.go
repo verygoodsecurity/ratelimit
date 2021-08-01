@@ -3,7 +3,6 @@ package metrics
 import (
 	"context"
 	stats "github.com/lyft/gostats"
-	logger "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"time"
 )
@@ -40,7 +39,6 @@ func (r *ServerReporter) UnaryServerInterceptor() func(ctx context.Context, req 
 		s := newServerMetrics(r.scope, info.FullMethod)
 		s.totalRequests.Inc()
 		resp, err := handler(ctx, req)
-		logger.Infof("%s execution time: %v milliseconds", info.FullMethod, float64(time.Since(start).Milliseconds()))
 		s.responseTime.AddValue(float64(time.Since(start).Milliseconds()))
 		return resp, err
 	}
