@@ -19,4 +19,4 @@ COPY --from=build /go/bin/ratelimit /bin/ratelimit
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN mkdir -p /var/log/supervisor
 
-ENTRYPOINT ["/bin/ratelimit"]
+ENTRYPOINT ["/usr/bin/supervisord"]
