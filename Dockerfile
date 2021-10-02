@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /go/bin/ratelimit -ldflags="-w -s" -v g
 FROM alpine:3.11
 RUN apk --no-cache add ca-certificates
 
-FROM ubuntu:latest
+FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y supervisor
 COPY --from=build /go/bin/ratelimit /bin/ratelimit
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
