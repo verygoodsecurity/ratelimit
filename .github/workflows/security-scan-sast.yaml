@@ -10,6 +10,6 @@ jobs:
   scan:
     uses: verygood-ops/cicd-shared/.github/workflows/security-scan-sast.yaml@security-scan-sast-v1
     with:
-      uses_maven: true
+      uses_maven: false
     secrets:
       SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
