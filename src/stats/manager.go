@@ -27,6 +27,7 @@ type ManagerImpl struct {
 	rlStatsScope         gostats.Scope
 	serviceStatsScope    gostats.Scope
 	shouldRateLimitScope gostats.Scope
+	settings             settings.Settings
 }
 
 // Stats for panic recoveries.
