@@ -853,6 +853,10 @@ ratelimit.service.rate_limit.messaging.auth-service.over_limit.over_limit: 1
 ratelimit.service.rate_limit.messaging.auth-service.over_limit.shadow_mode: 1
 ```
 
+## Statistics options
+
+1. `EXTRA_TAGS`: set to `"<k1:v1>,<k2:v2>"` to tag all emitted stats with the provided tags. You might want to tag build commit or release version, for example.
+
 ## DogStatsD
 
 To enable dogstatsd integration set:
