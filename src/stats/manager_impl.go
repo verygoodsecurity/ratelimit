@@ -8,6 +8,14 @@ import (
 	"github.com/envoyproxy/ratelimit/src/utils"
 )
 
+type ManagerImpl struct {
+	store                gostats.Store
+	rlStatsScope         gostats.Scope
+	serviceStatsScope    gostats.Scope
+	shouldRateLimitScope gostats.Scope
+	settings             settings.Settings
+}
+
 func NewStatManager(store gostats.Store, settings settings.Settings) *ManagerImpl {
 	serviceScope := store.ScopeWithTags("ratelimit", settings.ExtraTags).Scope("service")
 	return &ManagerImpl{
@@ -15,6 +23,7 @@ func NewStatManager(store gostats.Store, settings settings.Settings) *ManagerImp
 		rlStatsScope:         serviceScope.Scope("rate_limit"),
 		serviceStatsScope:    serviceScope,
 		shouldRateLimitScope: serviceScope.Scope("call.should_rate_limit"),
+		settings:             settings,
 	}
 }
 
@@ -27,9 +36,16 @@ func (this *ManagerImpl) GetStatsStore() gostats.Store {
 // @return new stats.
 func (this *ManagerImpl) NewStats(key string) RateLimitStats {
 	ret := RateLimitStats{}
-	logger.Debugf("Creating stats for key: '%s'", key)
 	ret.Key = key
-	key = utils.SanitizeStatName(key)
+
+	// If per-key stats are disabled, use a generic "all" key to avoid memory leaks
+	if !this.settings.EnablePerKeyStats {
+		key = "all"
+	} else {
+		logger.Debugf("Creating stats for key: '%s'", key)
+		key = utils.SanitizeStatName(key)
+	}
+
 	ret.TotalHits = this.rlStatsScope.NewCounter(key + ".total_hits")
 	ret.OverLimit = this.rlStatsScope.NewCounter(key + ".over_limit")
 	ret.NearLimit = this.rlStatsScope.NewCounter(key + ".near_limit")

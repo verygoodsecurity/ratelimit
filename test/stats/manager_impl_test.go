@@ -54,3 +54,68 @@ func TestEscapingInvalidChartersInMetricName(t *testing.T) {
 		})
 	}
 }
+
+func TestPerKeyStats(t *testing.T) {
+	tests := []struct {
+		name             string
+		enablePerKeyStats bool
+		keys             []string
+		expectedMetrics  []string
+	}{
+		{
+			name:             "per-key stats enabled",
+			enablePerKeyStats: true,
+			keys:             []string{"key1", "key2", "key3"},
+			expectedMetrics:  []string{"key1.total_hits", "key2.total_hits", "key3.total_hits"},
+		},
+		{
+			name:             "per-key stats disabled",
+			enablePerKeyStats: false,
+			keys:             []string{"key1", "key2", "key3"},
+			expectedMetrics:  []string{"all.total_hits"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSink := gostatsMock.NewSink()
+			statsStore := gostats.NewStore(mockSink, false)
+			statsManager := stats.NewStatManager(statsStore, settings.Settings{
+				EnablePerKeyStats: tt.enablePerKeyStats,
+			})
+
+			// Create stats for each key and increment counters
+			for _, key := range tt.keys {
+				stats := statsManager.NewStats(key)
+				assert.Equal(t, key, stats.GetKey()) // Original key should be preserved
+				stats.TotalHits.Inc()
+				stats.OverLimit.Inc()
+				stats.NearLimit.Inc()
+				stats.WithinLimit.Inc()
+				stats.ShadowMode.Inc()
+			}
+
+			statsManager.GetStatsStore().Flush()
+
+			// Verify expected metrics exist
+			for _, metric := range tt.expectedMetrics {
+				mockSink.AssertCounterExists(t, fmt.Sprintf("ratelimit.service.rate_limit.%s", metric))
+			}
+
+			// For disabled per-key stats, verify all stats are aggregated
+			if !tt.enablePerKeyStats {
+				// All metrics should be aggregated under "all"
+				mockSink.AssertCounterValue(t, "ratelimit.service.rate_limit.all.total_hits", float64(len(tt.keys)))
+				mockSink.AssertCounterValue(t, "ratelimit.service.rate_limit.all.over_limit", float64(len(tt.keys)))
+				mockSink.AssertCounterValue(t, "ratelimit.service.rate_limit.all.near_limit", float64(len(tt.keys)))
+				mockSink.AssertCounterValue(t, "ratelimit.service.rate_limit.all.within_limit", float64(len(tt.keys)))
+				mockSink.AssertCounterValue(t, "ratelimit.service.rate_limit.all.shadow_mode", float64(len(tt.keys)))
+
+				// Verify individual key metrics don't exist
+				for _, key := range tt.keys {
+					mockSink.AssertCounterNotExists(t, fmt.Sprintf("ratelimit.service.rate_limit.%s.total_hits", key))
+				}
+			}
+		})
+	}
+}

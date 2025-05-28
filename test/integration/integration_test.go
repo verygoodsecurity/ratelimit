@@ -908,3 +908,97 @@ func waitForConfigReload(runner *runner.Runner, loadCountBefore uint64) (uint64,
 	}
 	return loadCountAfter, reloaded
 }
+
+func TestPerKeyStats(t *testing.T) {
+	common.WithMultiRedis(t, []common.RedisConfig{
+		{Port: 6383},
+	}, func() {
+		t.Run("WithPerKeyStatsEnabled", testPerKeyStats(true))
+		t.Run("WithPerKeyStatsDisabled", testPerKeyStats(false))
+	})
+}
+
+func testPerKeyStats(enablePerKeyStats bool) func(*testing.T) {
+	return func(t *testing.T) {
+		s := makeSimpleRedisSettings(6383, 6380, false, 0)
+		s.EnablePerKeyStats = enablePerKeyStats
+		runner := startTestRunner(t, s)
+		defer runner.Stop()
+
+		assert := assert.New(t)
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%v", s.GrpcPort), grpc.WithInsecure())
+		assert.NoError(err)
+		defer conn.Close()
+		c := pb.NewRateLimitServiceClient(conn)
+
+		// Make multiple requests with different keys
+		keys := []string{"key1", "key2", "key3"}
+		for _, key := range keys {
+			_, err = c.ShouldRateLimit(
+				context.Background(),
+				common.NewRateLimitRequest("basic", [][][2]string{{{getCacheKey(key, false), "foo"}}}, 1))
+			assert.NoError(err)
+		}
+
+		// Manually flush the cache for stats
+		runner.GetStatsStore().Flush()
+
+		if enablePerKeyStats {
+			// When per-key stats are enabled, verify each key has its own stats
+			for _, key := range keys {
+				counter := runner.GetStatsStore().NewCounter(
+					fmt.Sprintf("ratelimit.service.rate_limit.basic.%s.total_hits", getCacheKey(key, false)))
+				assert.Equal(1, int(counter.Value()), "Expected individual counter for key %s", key)
+			}
+		} else {
+			// When per-key stats are disabled, verify all stats are aggregated
+			counter := runner.GetStatsStore().NewCounter("ratelimit.service.rate_limit.all.total_hits")
+			assert.Equal(len(keys), int(counter.Value()), "Expected aggregated counter value")
+
+			// Verify individual key metrics don't exist
+			for _, key := range keys {
+				counter := runner.GetStatsStore().NewCounter(
+					fmt.Sprintf("ratelimit.service.rate_limit.basic.%s.total_hits", getCacheKey(key, false)))
+				assert.Equal(0, int(counter.Value()), "Expected no counter for key %s", key)
+			}
+		}
+
+		// Test near limit behavior
+		for i := 0; i < 8; i++ { // 8 requests to get near the limit (80% of 10)
+			_, err = c.ShouldRateLimit(
+				context.Background(),
+				common.NewRateLimitRequest("another", [][][2]string{{{getCacheKey("test_key", false), "foo"}}}, 1))
+			assert.NoError(err)
+		}
+
+		runner.GetStatsStore().Flush()
+
+		if enablePerKeyStats {
+			nearLimitCounter := runner.GetStatsStore().NewCounter(
+				fmt.Sprintf("ratelimit.service.rate_limit.another.%s.near_limit", getCacheKey("test_key", false)))
+			assert.Equal(1, int(nearLimitCounter.Value()), "Expected near limit counter for specific key")
+		} else {
+			nearLimitCounter := runner.GetStatsStore().NewCounter("ratelimit.service.rate_limit.all.near_limit")
+			assert.Equal(1, int(nearLimitCounter.Value()), "Expected aggregated near limit counter")
+		}
+
+		// Test over limit behavior
+		for i := 0; i < 12; i++ { // 12 requests to exceed limit of 10
+			_, err = c.ShouldRateLimit(
+				context.Background(),
+				common.NewRateLimitRequest("over", [][][2]string{{{getCacheKey("over_key", false), "foo"}}}, 1))
+			assert.NoError(err)
+		}
+
+		runner.GetStatsStore().Flush()
+
+		if enablePerKeyStats {
+			overLimitCounter := runner.GetStatsStore().NewCounter(
+				fmt.Sprintf("ratelimit.service.rate_limit.over.%s.over_limit", getCacheKey("over_key", false)))
+			assert.Equal(2, int(overLimitCounter.Value()), "Expected over limit counter for specific key")
+		} else {
+			overLimitCounter := runner.GetStatsStore().NewCounter("ratelimit.service.rate_limit.all.over_limit")
+			assert.Equal(2, int(overLimitCounter.Value()), "Expected aggregated over limit counter")
+		}
+	}
+}
