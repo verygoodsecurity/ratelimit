@@ -2,6 +2,8 @@ package stats
 
 import (
 	gostats "github.com/lyft/gostats"
+
+	"github.com/envoyproxy/ratelimit/src/settings"
 )
 
 // Manager is the interface that wraps initialization of stat structures.

@@ -85,6 +85,7 @@ type Settings struct {
 	UseDogStatsd           bool              `envconfig:"USE_DOG_STATSD" default:"false"`
 	UseDogStatsdMogrifiers []string          `envconfig:"USE_DOG_STATSD_MOGRIFIERS" default:""`
 	UseStatsd              bool              `envconfig:"USE_STATSD" default:"true"`
+	EnablePerKeyStats      bool              `envconfig:"ENABLE_PER_KEY_STATS" default:"true"`
 	StatsdHost             string            `envconfig:"STATSD_HOST" default:"localhost"`
 	StatsdPort             int               `envconfig:"STATSD_PORT" default:"8125"`
 	ExtraTags              map[string]string `envconfig:"EXTRA_TAGS" default:""`
@@ -94,7 +95,6 @@ type Settings struct {
 	PrometheusAddr         string            `envconfig:"PROMETHEUS_ADDR" default:":9090"`
 	PrometheusPath         string            `envconfig:"PROMETHEUS_PATH" default:"/metrics"`
 	PrometheusMapperYaml   string            `envconfig:"PROMETHEUS_MAPPER_YAML" default:""`
-	EnablePerKeyStats      bool              `envconfig:"ENABLE_PER_KEY_STATS" default:"true"`
 
 	// Settings for rate limit configuration
 	RuntimePath           string `envconfig:"RUNTIME_ROOT" default:"/srv/runtime_data/current"`
