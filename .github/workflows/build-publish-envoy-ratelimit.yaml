@@ -1,0 +1,125 @@
+---
+name: Docker Build and Publish
+
+on:
+  push:
+    tags:
+      - '*'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      name: 'vault/envoy-ratelimit'
+      team: 'team-vault'
+      ttle: 'Envoy Ratelimit Image'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392  # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+
+      #- name: AWS ECR Login
+      #  id: ecr-login
+      #  uses: verygood-ops/cicd-shared/.github/actions/aws-ecr-login@aws-ecr-login-action-v1.0.1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722  # v4.1.0
+        with:
+          role-to-assume: 'arn:aws:iam::190066226418:role/GithubECRPublisherRole'
+          aws-region: us-east-1
+
+      - name: Login to AWS Release ECR
+        id: ecr-release
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076  # v2.0.1
+        with:
+          registries: "190066226418"
+        env:
+          AWS_REGION: us-east-1
+
+      - name: Login to AWS ephemeral ECR
+        id: ecr-ephemeral
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076  # v2.0.1
+        with:
+          registries: "883127560329"
+        env:
+          AWS_REGION: us-west-2
+
+      - name: Prepare context
+        id: context
+        run: |
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "REGISTRY=${REGISTRY}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+          echo "TEAM=${TEAM}" >> $GITHUB_ENV
+          echo "TITLE=${TITLE}" >> $GITHUB_ENV
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name }}
+          # yamllint disable-line rule:line-length
+          REGISTRY: ${{ github.ref_type == 'tag' && steps.ecr-release.outputs.registry || steps.ecr-ephemeral.outputs.registry }}
+          IMAGE_NAME: ${{ env.name }}
+          TEAM: ${{ env.team }}
+          TITLE: ${{ env.title }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # type semver considers tag with or without the prefix v
+            type=semver,pattern={{version}},value=${{ env.TAG }},enable=${{ env.TAG != 'false' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }},enable=${{ env.TAG != 'false' }}
+            type=semver,pattern={{major}},value=${{ env.TAG }},enable=${{ env.TAG != 'false' }}
+            # if TAG starts with letter v we assume it's a semver TAG so we skip this
+            type=raw,value=${{ env.TAG }},enable=${{ env.TAG != 'false' && !startsWith(env.TAG, 'v') }}
+            # if we don't have a tag, use sha
+            type=sha,prefix=,format=long,enable=${{ env.TAG == 'false' }}
+          flavor: |
+            latest=false
+          labels: |
+            org.opencontainers.image.authors=${{ env.TEAM }}
+            org.opencontainers.image.title=${{ env.TITLE }}
+            org.opencontainers.image.description=${{ env.DESCRIPTION }}
+            vgs.io/team=${{ env.TEAM }}
+          annotations: |
+            org.opencontainers.image.authors=${{ env.TEAM }}
+            org.opencontainers.image.title=${{ env.TITLE }}
+            org.opencontainers.image.description=${{ env.DESCRIPTION }}
+            vgs.io/team=${{ env.TEAM }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        with:
+          push: true
+          context: '.'
+          file: 'Dockerfile'
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          secrets: ${{ secrets.values }}
+          secret-envs: ${{ secrets.envs }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
