@@ -1,0 +1,102 @@
+---
+name: Docker Build and Publish
+
+on:
+  push:
+    tags:
+      - '*'
+  pull_request:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: 'vault/envoy-ratelimit'
+      TEAM: 'team-secure-data'
+      TITLE: 'Envoy Ratelimit Image'
+
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722  # v4.1.0
+        with:
+          role-to-assume: 'arn:aws:iam::190066226418:role/GithubECRPublisherRole'
+          aws-region: us-east-1
+
+      - name: Login to AWS Release ECR
+        id: ecr-release
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076  # v2.0.1
+        with:
+          registries: "190066226418"
+        env:
+          AWS_REGION: us-east-1
+
+      - name: Login to AWS ephemeral ECR
+        id: ecr-ephemeral
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076  # v2.0.1
+        with:
+          registries: "883127560329"
+        env:
+          AWS_REGION: us-west-2
+
+      - name: Prepare context
+        id: context
+        run: |
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "REGISTRY=${REGISTRY}" >> $GITHUB_ENV
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'false' }}
+          # yamllint disable-line rule:line-length
+          REGISTRY: ${{ github.ref_type == 'tag' && steps.ecr-release.outputs.registry || steps.ecr-ephemeral.outputs.registry }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # type semver considers tag with or without the prefix v
+            type=semver,pattern={{version}},value=${{ env.TAG }},enable=${{ env.TAG != 'false' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }},enable=${{ env.TAG != 'false' }}
+            type=semver,pattern={{major}},value=${{ env.TAG }},enable=${{ env.TAG != 'false' }}
+            # if TAG starts with letter v we assume it's a semver TAG so we skip this
+            type=raw,value=${{ env.TAG }},enable=${{ env.TAG != 'false' && !startsWith(env.TAG, 'v') }}
+            # if we don't have a tag, use sha
+            type=sha,prefix=,format=long,enable=${{ env.TAG == 'false' }}
+          flavor: |
+            latest=false
+          labels: |
+            org.opencontainers.image.authors=${{ env.TEAM }}
+            org.opencontainers.image.title=${{ env.TITLE }}
+            vgs.io/team=${{ env.TEAM }}
+          annotations: |
+            org.opencontainers.image.authors=${{ env.TEAM }}
+            org.opencontainers.image.title=${{ env.TITLE }}
+            vgs.io/team=${{ env.TEAM }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        with:
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
