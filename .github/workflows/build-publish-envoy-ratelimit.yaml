@@ -22,7 +22,7 @@ jobs:
 
     env:
       IMAGE_NAME: 'vault/envoy-ratelimit'
-      TEAM: 'team-vault'
+      TEAM: 'team-secure-data'
       TITLE: 'Envoy Ratelimit Image'
 
     steps:
