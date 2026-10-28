@@ -50,4 +50,6 @@ jobs:
         name: Read for resolution steps
         run: |
           echo "Pre-commits failed! Run 'make precommit_install' then 'pre-commits run -a' to fix."
+          echo "Changes made by the hooks:"
+          git --no-pager diff
           exit 1
