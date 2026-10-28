@@ -4,7 +4,7 @@ name: Docker Build and Publish
 on:
   push:
     tags:
-      - '*'
+      - "*"
   pull_request:
 
 permissions:
@@ -16,36 +16,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
 
     env:
-      IMAGE_NAME: 'vault/envoy-ratelimit'
-      TEAM: 'team-secure-data'
-      TITLE: 'Envoy Ratelimit Image'
+      IMAGE_NAME: "vault/envoy-ratelimit"
+      TEAM: "team-secure-data"
+      TITLE: "Envoy Ratelimit Image"
       # PRs from forks get no OIDC token, so they build the image without logging in to ECR or pushing
       # yamllint disable-line rule:line-length
       CAN_PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
     steps:
-
       - uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Configure AWS credentials
         if: env.CAN_PUSH == 'true'
-        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722  # v4.1.0
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
         with:
-          role-to-assume: 'arn:aws:iam::190066226418:role/GithubECRPublisherRole'
+          role-to-assume: "arn:aws:iam::190066226418:role/GithubECRPublisherRole"
           aws-region: us-east-1
 
       - name: Login to AWS Release ECR
         id: ecr-release
         if: env.CAN_PUSH == 'true'
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076  # v2.0.1
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
         with:
           registries: "190066226418"
         env:
@@ -54,7 +52,7 @@ jobs:
       - name: Login to AWS ephemeral ECR
         id: ecr-ephemeral
         if: env.CAN_PUSH == 'true'
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076  # v2.0.1
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
         with:
           registries: "883127560329"
         env:
@@ -72,7 +70,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -98,7 +96,7 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           push: ${{ env.CAN_PUSH == 'true' }}
           platforms: linux/amd64

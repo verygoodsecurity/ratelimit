@@ -290,7 +290,7 @@ func (this *rateLimitConfigImpl) GetLimit(
 	}
 
 	if descriptor.GetLimit() != nil {
-		//rateLimitKey := domain + "." + this.descriptorToKey(descriptor)
+		// rateLimitKey := domain + "." + this.descriptorToKey(descriptor)
 		// when ip is unique for each request it generates too many stats counters and never cleans them up
 		rateLimitKey := domain + ".override"
 		rateLimitOverrideUnit := pb.RateLimitResponse_RateLimit_Unit(descriptor.GetLimit().GetUnit())
