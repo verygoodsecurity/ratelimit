@@ -10,4 +10,4 @@ aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
 region = us-east-1
 role_arn = arn:aws:iam::190066226418:role/VGSImageDeploy
 source_profile = default
-" >> ~/.aws/credentials
+" >>~/.aws/credentials
